@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#f6f7fb" />
+  <title>Sổ chi tiêu theo ngày</title>
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --surface: #ffffff;
+      --surface-soft: #f9fafc;
+      --text: #17181c;
+      --muted: #70747d;
+      --line: #e8e9ee;
+      --accent: #5c56d8;
+      --accent-soft: #efedff;
+      --danger: #e35d6a;
+      --shadow: 0 16px 40px rgba(25, 28, 40, 0.06);
+      --radius-xl: 22px;
+      --radius-lg: 16px;
+      --radius-md: 12px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    input::placeholder { color: #b7bac2; }
+
+    .app-shell {
+      width: min(1460px, calc(100% - 36px));
+      margin: 0 auto;
+      padding: 24px 0 32px;
+    }
+
+    .topbar {
+      margin-bottom: 18px;
+    }
+
+    .date-title {
+      min-height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px 24px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255,255,255,0.88);
+      box-shadow: 0 8px 24px rgba(25, 28, 40, 0.04);
+      text-align: center;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      font-size: clamp(20px, 3vw, 28px);
+    }
+
+    .dashboard {
+      display: grid;
+      grid-template-columns: minmax(0, 1.55fr) minmax(330px, 0.9fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel-head {
+      padding: 20px 20px 16px;
+      display: flex;
+      gap: 14px;
+      align-items: flex-end;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .section-label {
+      margin: 0 0 6px;
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 800;
+    }
+
+    .section-title {
+      margin: 0;
+      font-size: 20px;
+      letter-spacing: -0.02em;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .date-input-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 42px;
+      padding: 0 12px;
+      background: var(--surface-soft);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+    }
+
+    .date-input-wrap svg {
+      flex: 0 0 auto;
+      color: var(--muted);
+    }
+
+    .date-input {
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--text);
+      min-width: 145px;
+    }
+
+    .currency-toggle {
+      display: inline-flex;
+      gap: 4px;
+      padding: 4px;
+      background: var(--surface-soft);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+    }
+
+    .currency-toggle button {
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      padding: 7px 10px;
+      border-radius: 9px;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .currency-toggle button.active {
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: 0 2px 8px rgba(25, 28, 40, 0.08);
+    }
+
+    .table-card {
+      padding: 14px 18px 18px;
+    }
+
+    .expense-table {
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      overflow: hidden;
+      background: var(--surface);
+    }
+
+    .table-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(170px, 0.36fr);
+      align-items: center;
+    }
+
+    .table-head {
+      min-height: 48px;
+      background: #fbfbfd;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .table-head > div,
+    .expense-row > div {
+      padding: 0 14px;
+    }
+
+    .expense-scroll {
+      height: 500px;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+    }
+
+    .expense-row {
+      min-height: 56px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface);
+    }
+
+    .expense-row:last-child { border-bottom: 0; }
+
+    .expense-row:focus-within { background: #fcfbff; }
+
+    .text-input,
+    .money-input,
+    .note-text,
+    .note-amount {
+      width: 100%;
+      border: 1px solid transparent;
+      outline: 0;
+      background: transparent;
+      color: var(--text);
+      padding: 9px 10px;
+      border-radius: 10px;
+      transition: border-color .16s ease, background .16s ease, box-shadow .16s ease;
+    }
+
+    .text-input:focus,
+    .money-input:focus,
+    .note-text:focus,
+    .note-amount:focus {
+      border-color: #d7d3ff;
+      background: var(--accent-soft);
+      box-shadow: 0 0 0 3px rgba(92,86,216,.08);
+    }
+
+    .money-cell {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .money-input,
+    .note-amount {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      min-width: 0;
+    }
+
+    .money-cell .money-input,
+    .money-cell .note-amount {
+      flex: 1 1 auto;
+    }
+
+    .currency-unit {
+      flex: 0 0 auto;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .04em;
+    }
+
+    .table-footer {
+      min-height: 60px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(170px, 0.36fr);
+      border-top: 1px solid var(--line);
+      background: #fafaff;
+      position: sticky;
+      bottom: 0;
+      z-index: 2;
+    }
+
+    .table-footer > div {
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+    }
+
+    .total-label {
+      font-weight: 900;
+    }
+
+    .total-value {
+      justify-content: flex-end;
+      font-size: 20px;
+      font-weight: 900;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .table-actions {
+      display: flex;
+      justify-content: flex-end;
+      padding-top: 12px;
+    }
+
+    .primary-btn,
+    .ghost-btn,
+    .icon-btn {
+      border-radius: 11px;
+      border: 1px solid var(--line);
+      min-height: 40px;
+      font-weight: 800;
+      transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    .primary-btn {
+      padding: 0 14px;
+      border-color: var(--accent);
+      background: var(--accent);
+      color: white;
+      box-shadow: 0 8px 18px rgba(92, 86, 216, .2);
+    }
+
+    .ghost-btn,
+    .icon-btn {
+      background: white;
+      color: var(--text);
+      padding: 0 12px;
+    }
+
+    .icon-btn { width: 40px; padding: 0; display: grid; place-items: center; }
+    .icon-btn:hover, .ghost-btn:hover, .primary-btn:hover { transform: translateY(-1px); }
+
+    .notes-wrap {
+      padding: 18px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .note-column {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--surface-soft);
+      overflow: hidden;
+    }
+
+    .note-column-head {
+      padding: 14px 14px 12px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .note-column-head h3 {
+      margin: 0;
+      font-size: 15px;
+    }
+
+    .note-list {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+      max-height: 420px;
+      overflow-y: auto;
+    }
+
+    .note-item {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) 120px auto;
+      gap: 8px;
+      align-items: center;
+      padding: 9px;
+      border-radius: 12px;
+      background: white;
+      border: 1px solid var(--line);
+    }
+
+    .note-checkbox {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent);
+    }
+
+    .note-text.done {
+      text-decoration: line-through;
+      color: #9a9da5;
+    }
+
+    .note-empty {
+      color: var(--muted);
+      font-size: 13px;
+      padding: 8px 2px 4px;
+      text-align: center;
+    }
+
+    .note-footer {
+      padding: 0 12px 12px;
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .tiny-btn {
+      min-height: 36px;
+      border: 1px solid var(--line);
+      background: white;
+      border-radius: 10px;
+      padding: 0 11px;
+      font-weight: 800;
+      font-size: 13px;
+    }
+
+    .status {
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--muted);
+      text-align: right;
+      min-height: 16px;
+    }
+
+    @media (max-width: 980px) {
+      .dashboard { grid-template-columns: 1fr; }
+      .expense-scroll { height: 420px; }
+    }
+
+    @media (max-width: 700px) {
+      .app-shell { width: min(100% - 20px, 1460px); padding-top: 12px; }
+      .panel-head { align-items: stretch; }
+      .controls { width: 100%; }
+      .date-input-wrap { flex: 1 1 180px; }
+      .date-input { min-width: 0; width: 100%; }
+      .table-row,
+      .table-footer { grid-template-columns: minmax(0, 1fr) minmax(120px, .46fr); }
+      .expense-scroll { height: 380px; }
+      .note-item { grid-template-columns: auto minmax(0, 1fr) auto; }
+      .note-item .note-money-cell { grid-column: 2 / 3; }
+      .note-item .delete-note { grid-column: 3 / 4; grid-row: 1 / span 2; }
+    }
+
+    @media (max-width: 470px) {
+      .date-title { font-size: 18px; min-height: 56px; }
+      .table-card, .notes-wrap { padding: 12px; }
+      .table-head > div, .expense-row > div, .table-footer > div { padding: 0 9px; }
+      .money-input, .text-input { padding: 8px; }
+      .note-item { grid-template-columns: auto minmax(0, 1fr) auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div class="date-title" id="dateTitle">Thông tin chi tiêu ngày 07/09/2026</div>
+    </header>
+
+    <section class="dashboard">
+      <article class="panel">
+        <div class="panel-head">
+          <div>
+            <p class="section-label">Chi tiêu trong ngày</p>
+            <h2 class="section-title">Bảng ghi chép</h2>
+          </div>
+          <div class="controls">
+            <label class="date-input-wrap" aria-label="Chọn ngày">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="17" rx="3"></rect>
+                <path d="M16 2v4M8 2v4M3 9h18"></path>
+              </svg>
+              <input class="date-input" id="datePicker" type="date" />
+            </label>
+            <div class="currency-toggle" role="group" aria-label="Đơn vị tiền tệ">
+              <button type="button" data-currency="KRW" class="active">KRW</button>
+              <button type="button" data-currency="VND">VND</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <div class="expense-table">
+            <div class="table-row table-head">
+              <div>Nội dung chi tiêu</div>
+              <div>Giá</div>
+            </div>
+
+            <div class="expense-scroll" id="expenseRows" aria-live="polite"></div>
+
+            <div class="table-footer">
+              <div class="total-label">Tổng tiền</div>
+              <div class="total-value" id="totalValue">₩0</div>
+            </div>
+          </div>
+
+          <div class="table-actions">
+            <button type="button" class="primary-btn" id="addExpenseBtn">＋ Thêm dòng</button>
+          </div>
+          <div class="status" id="saveStatus">Dữ liệu tự động lưu trên thiết bị</div>
+        </div>
+      </article>
+
+      <aside class="panel">
+        <div class="panel-head">
+          <div>
+            <p class="section-label">Take Note</p>
+            <h2 class="section-title">Nợ / Mượn</h2>
+          </div>
+        </div>
+
+        <div class="notes-wrap">
+          <section class="note-column">
+            <div class="note-column-head">
+              <h3>Tiền người khác cần trả</h3>
+              <span class="section-label" style="margin:0;">THU VỀ</span>
+            </div>
+            <div class="note-list" id="receivableList"></div>
+            <div class="note-footer">
+              <button type="button" class="tiny-btn" data-add-note="receivable">＋ Thêm khoản</button>
+            </div>
+          </section>
+
+          <section class="note-column">
+            <div class="note-column-head">
+              <h3>Tiền trả người khác</h3>
+              <span class="section-label" style="margin:0;">PHẢI TRẢ</span>
+            </div>
+            <div class="note-list" id="payableList"></div>
+            <div class="note-footer">
+              <button type="button" class="tiny-btn" data-add-note="payable">＋ Thêm khoản</button>
+            </div>
+          </section>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    const STORAGE_KEY = 'daily-expense-dashboard-v1';
+    const SETTINGS_KEY = 'daily-expense-dashboard-settings-v1';
+    const INITIAL_EXPENSE_ROWS = 10;
+
+    const state = {
+      selectedDate: getTodayKey(),
+      currency: 'KRW',
+      data: loadAllData()
+    };
+
+    const $ = (selector) => document.querySelector(selector);
+
+    const datePicker = $('#datePicker');
+    const dateTitle = $('#dateTitle');
+    const expenseRows = $('#expenseRows');
+    const totalValue = $('#totalValue');
+    const saveStatus = $('#saveStatus');
+    const receivableList = $('#receivableList');
+    const payableList = $('#payableList');
+
+    const currencySymbols = { KRW: '₩', VND: '₫' };
+
+    function getTodayKey() {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    function formatDateVi(dateKey) {
+      const [y, m, d] = dateKey.split('-');
+      return `${d}/${m}/${y}`;
+    }
+
+    function createEmptyDay(date) {
+      return {
+        date,
+        expenses: Array.from({ length: INITIAL_EXPENSE_ROWS }, (_, index) => ({
+          id: `exp_${date}_${index + 1}`,
+          item: '',
+          amount: 0
+        })),
+        total: 0,
+        notes: { receivable: [], payable: [] }
+      };
+    }
+
+    function normalizeDay(date, raw) {
+      const base = createEmptyDay(date);
+      if (!raw || typeof raw !== 'object') return base;
+
+      const expenses = Array.isArray(raw.expenses) ? raw.expenses : [];
+      base.expenses = expenses.map((item, index) => ({
+        id: String(item?.id || `exp_${date}_${index + 1}`),
+        item: String(item?.item || ''),
+        amount: toNumber(item?.amount)
+      }));
+
+      while (base.expenses.length < INITIAL_EXPENSE_ROWS) {
+        const i = base.expenses.length + 1;
+        base.expenses.push({ id: `exp_${date}_${i}`, item: '', amount: 0 });
+      }
+
+      base.notes = {
+        receivable: normalizeNotes(raw?.notes?.receivable, 'rec', date),
+        payable: normalizeNotes(raw?.notes?.payable, 'pay', date)
+      };
+      base.total = sumExpenses(base.expenses);
+      return base;
+    }
+
+    function normalizeNotes(list, prefix, date) {
+      if (!Array.isArray(list)) return [];
+      return list.map((note, index) => ({
+        id: String(note?.id || `${prefix}_${date}_${index + 1}`),
+        content: String(note?.content || ''),
+        amount: toNumber(note?.amount),
+        isDone: Boolean(note?.isDone)
+      }));
+    }
+
+    function loadAllData() {
+      try {
+        const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+        return raw && typeof raw === 'object' ? raw : {};
+      } catch {
+        return {};
+      }
+    }
+
+    function loadSettings() {
+      try {
+        const raw = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+        if (raw.currency === 'VND' || raw.currency === 'KRW') state.currency = raw.currency;
+      } catch {}
+    }
+
+    function saveAllData() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data));
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify({ currency: state.currency }));
+      flashSaved();
+    }
+
+    let saveTimer;
+    function flashSaved() {
+      saveStatus.textContent = 'Đã tự động lưu';
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        saveStatus.textContent = 'Dữ liệu tự động lưu trên thiết bị';
+      }, 1200);
+    }
+
+    function getCurrentDay() {
+      if (!state.data[state.selectedDate]) {
+        state.data[state.selectedDate] = createEmptyDay(state.selectedDate);
+      }
+      state.data[state.selectedDate] = normalizeDay(state.selectedDate, state.data[state.selectedDate]);
+      return state.data[state.selectedDate];
+    }
+
+    function toNumber(value) {
+      if (typeof value === 'number') return Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
+      const digits = String(value ?? '').replace(/[^0-9]/g, '');
+      return digits ? Number(digits) : 0;
+    }
+
+    function sumExpenses(expenses) {
+      return expenses.reduce((sum, row) => sum + toNumber(row.amount), 0);
+    }
+
+    function formatMoney(value) {
+      const number = Math.max(0, Math.round(toNumber(value)));
+      return new Intl.NumberFormat('vi-VN').format(number);
+    }
+
+    function moneyLabel(value) {
+      return `${formatMoney(value)} ${state.currency}`;
+    }
+
+    function buildExpenseRow(row, index) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'table-row expense-row';
+      wrapper.dataset.id = row.id;
+      wrapper.innerHTML = `
+        <div>
+          <input class="text-input expense-item" type="text" placeholder="Nhập nội dung..." value="${escapeHtml(row.item)}" data-index="${index}" aria-label="Nội dung chi tiêu ${index + 1}" />
+        </div>
+        <div>
+          <div class="money-cell"><input class="money-input expense-amount" type="text" inputmode="numeric" autocomplete="off" placeholder="0" value="${row.amount ? formatMoney(row.amount) : ''}" data-index="${index}" aria-label="Giá ${index + 1}" /><span class="currency-unit">${state.currency}</span></div>
+        </div>
+      `;
+      return wrapper;
+    }
+
+    function renderExpenses() {
+      const day = getCurrentDay();
+      expenseRows.innerHTML = '';
+      day.expenses.forEach((row, index) => expenseRows.appendChild(buildExpenseRow(row, index)));
+      updateTotal();
+    }
+
+    function updateTotal() {
+      const day = getCurrentDay();
+      day.total = sumExpenses(day.expenses);
+      totalValue.textContent = moneyLabel(day.total);
+    }
+
+    function updateHeader() {
+      dateTitle.textContent = `Thông tin chi tiêu ngày ${formatDateVi(state.selectedDate)}`;
+      datePicker.value = state.selectedDate;
+    }
+
+    function renderCurrencyButtons() {
+      document.querySelectorAll('[data-currency]').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.currency === state.currency);
+      });
+    }
+
+    function buildNote(note, type, index) {
+      const item = document.createElement('div');
+      item.className = 'note-item';
+      item.dataset.id = note.id;
+      item.innerHTML = `
+        <input class="note-checkbox" type="checkbox" ${note.isDone ? 'checked' : ''} data-note-type="${type}" data-note-index="${index}" aria-label="Đánh dấu đã thanh toán" />
+        <input class="note-text ${note.isDone ? 'done' : ''}" type="text" value="${escapeHtml(note.content)}" placeholder="Nội dung khoản tiền..." data-note-type="${type}" data-note-index="${index}" aria-label="Nội dung" />
+        <div class="money-cell note-money-cell"><input class="note-amount" type="text" inputmode="numeric" value="${note.amount ? formatMoney(note.amount) : ''}" placeholder="0" data-note-type="${type}" data-note-index="${index}" aria-label="Số tiền" /><span class="currency-unit">${state.currency}</span></div>
+        <button type="button" class="icon-btn delete-note" title="Xoá khoản" data-delete-note="${type}" data-note-index="${index}" aria-label="Xoá khoản">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6m4 4v6m6-6v6"/></svg>
+        </button>
+      `;
+      return item;
+    }
+
+    function renderNotes() {
+      const day = getCurrentDay();
+      renderNoteList(receivableList, day.notes.receivable, 'receivable');
+      renderNoteList(payableList, day.notes.payable, 'payable');
+    }
+
+    function renderNoteList(container, notes, type) {
+      container.innerHTML = '';
+      if (!notes.length) {
+        const empty = document.createElement('div');
+        empty.className = 'note-empty';
+        empty.textContent = 'Chưa có khoản nào. Thêm một khoản để bắt đầu.';
+        container.appendChild(empty);
+        return;
+      }
+      notes.forEach((note, index) => container.appendChild(buildNote(note, type, index)));
+    }
+
+    function addExpenseRow() {
+      const day = getCurrentDay();
+      const nextIndex = day.expenses.length + 1;
+      day.expenses.push({ id: `exp_${Date.now()}`, item: '', amount: 0 });
+      renderExpenses();
+      saveAllData();
+      requestAnimationFrame(() => {
+        const inputs = expenseRows.querySelectorAll('.expense-item');
+        const target = inputs[inputs.length - 1];
+        target?.focus();
+        expenseRows.scrollTop = expenseRows.scrollHeight;
+      });
+    }
+
+    function addNote(type) {
+      const day = getCurrentDay();
+      day.notes[type].push({
+        id: `${type === 'receivable' ? 'rec' : 'pay'}_${Date.now()}`,
+        content: '',
+        amount: 0,
+        isDone: false
+      });
+      renderNotes();
+      saveAllData();
+      requestAnimationFrame(() => {
+        const list = type === 'receivable' ? receivableList : payableList;
+        const inputs = list.querySelectorAll('.note-text');
+        inputs[inputs.length - 1]?.focus();
+      });
+    }
+
+    function deleteNote(type, index) {
+      const day = getCurrentDay();
+      day.notes[type].splice(index, 1);
+      renderNotes();
+      saveAllData();
+    }
+
+    function handleExpenseInput(event) {
+      const input = event.target;
+      const index = Number(input.dataset.index);
+      if (!Number.isInteger(index)) return;
+      const day = getCurrentDay();
+
+      if (input.classList.contains('expense-item')) {
+        day.expenses[index].item = input.value;
+      } else if (input.classList.contains('expense-amount')) {
+        const numeric = toNumber(input.value);
+        day.expenses[index].amount = numeric;
+        input.value = numeric ? formatMoney(numeric) : '';
+        updateTotal();
+      }
+      day.total = sumExpenses(day.expenses);
+      saveAllData();
+    }
+
+    function handleExpenseKeydown(event) {
+      const input = event.target;
+      if (!input.classList.contains('expense-item') && !input.classList.contains('expense-amount')) return;
+      if (event.key !== 'Enter') return;
+      const index = Number(input.dataset.index);
+      const day = getCurrentDay();
+      if (index === day.expenses.length - 1) {
+        event.preventDefault();
+        addExpenseRow();
+      } else {
+        event.preventDefault();
+        const next = expenseRows.querySelector(`.expense-item[data-index="${index + 1}"]`);
+        next?.focus();
+      }
+    }
+
+    function handleNoteInput(event) {
+      const el = event.target;
+      const type = el.dataset.noteType;
+      const index = Number(el.dataset.noteIndex);
+      if (!type || !Number.isInteger(index)) return;
+      const day = getCurrentDay();
+      const note = day.notes[type][index];
+      if (!note) return;
+
+      if (el.classList.contains('note-text')) {
+        note.content = el.value;
+      } else if (el.classList.contains('note-amount')) {
+        note.amount = toNumber(el.value);
+        el.value = note.amount ? formatMoney(note.amount) : '';
+      }
+      saveAllData();
+    }
+
+    function handleNoteChange(event) {
+      const el = event.target;
+      if (!el.classList.contains('note-checkbox')) return;
+      const type = el.dataset.noteType;
+      const index = Number(el.dataset.noteIndex);
+      const day = getCurrentDay();
+      const note = day.notes[type]?.[index];
+      if (!note) return;
+      note.isDone = el.checked;
+      renderNotes();
+      saveAllData();
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    datePicker.addEventListener('change', () => {
+      state.selectedDate = datePicker.value || getTodayKey();
+      getCurrentDay();
+      updateHeader();
+      renderExpenses();
+      renderNotes();
+      saveAllData();
+    });
+
+    $('#addExpenseBtn').addEventListener('click', addExpenseRow);
+
+    expenseRows.addEventListener('input', handleExpenseInput);
+    expenseRows.addEventListener('keydown', handleExpenseKeydown);
+    expenseRows.addEventListener('blur', event => {
+      if (event.target.classList.contains('expense-amount')) {
+        event.target.value = event.target.value ? formatMoney(event.target.value) : '';
+      }
+    }, true);
+
+    document.querySelectorAll('[data-currency]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.currency = btn.dataset.currency;
+        renderCurrencyButtons();
+        renderExpenses();
+        renderNotes();
+        saveAllData();
+      });
+    });
+
+    document.querySelectorAll('[data-add-note]').forEach(btn => {
+      btn.addEventListener('click', () => addNote(btn.dataset.addNote));
+    });
+
+    document.querySelectorAll('.note-list').forEach(list => {
+      list.addEventListener('input', handleNoteInput);
+      list.addEventListener('change', handleNoteChange);
+      list.addEventListener('blur', event => {
+        if (event.target.classList.contains('note-amount')) {
+          event.target.value = event.target.value ? formatMoney(event.target.value) : '';
+        }
+      }, true);
+      list.addEventListener('click', event => {
+        const button = event.target.closest('[data-delete-note]');
+        if (!button) return;
+        deleteNote(button.dataset.deleteNote, Number(button.dataset.noteIndex));
+      });
+    });
+
+    loadSettings();
+    getCurrentDay();
+    updateHeader();
+    renderCurrencyButtons();
+    renderExpenses();
+    renderNotes();
+  </script>
+</body>
+</html>
