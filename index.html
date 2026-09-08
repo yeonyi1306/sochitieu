@@ -64,7 +64,7 @@
 
     .dashboard {
       display: grid;
-      grid-template-columns: minmax(0, 1.55fr) minmax(330px, 0.9fr);
+      grid-template-columns: minmax(0, 1.55fr) minmax(210px, 0.48fr) minmax(330px, 0.9fr);
       gap: 18px;
       align-items: start;
     }
@@ -171,7 +171,7 @@
 
     .table-row {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(170px, 0.36fr);
+      grid-template-columns: minmax(0, 1fr) minmax(220px, 0.42fr);
       align-items: center;
     }
 
@@ -262,7 +262,7 @@
     .table-footer {
       min-height: 60px;
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(170px, 0.36fr);
+      grid-template-columns: minmax(0, 1fr) minmax(220px, 0.42fr);
       border-top: 1px solid var(--line);
       background: #fafaff;
       position: sticky;
@@ -320,6 +320,63 @@
 
     .icon-btn { width: 40px; padding: 0; display: grid; place-items: center; }
     .icon-btn:hover, .ghost-btn:hover, .primary-btn:hover { transform: translateY(-1px); }
+
+    .monthly-panel {
+      min-height: 180px;
+    }
+
+    .monthly-summary {
+      margin: 18px;
+      padding: 20px 18px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: linear-gradient(180deg, #fbfbff 0%, #f6f5ff 100%);
+      text-align: center;
+    }
+
+    .monthly-summary .section-label {
+      margin-bottom: 10px;
+    }
+
+    .monthly-month {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .monthly-value {
+      font-size: clamp(24px, 3vw, 32px);
+      line-height: 1.15;
+      font-weight: 950;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.03em;
+      word-break: break-word;
+    }
+
+    .monthly-caption {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .income-section {
+      margin-top: 18px;
+    }
+
+    .income-table .expense-scroll {
+      height: 220px;
+    }
+
+    .income-table .table-head {
+      background: #f8fcf9;
+    }
+
+    .income-table .table-footer {
+      background: #f8fcf9;
+    }
+
+    .net-positive { color: #198754; }
+    .net-negative { color: var(--danger); }
 
     .notes-wrap {
       padding: 18px;
@@ -421,7 +478,7 @@
       .date-input-wrap { flex: 1 1 180px; }
       .date-input { min-width: 0; width: 100%; }
       .table-row,
-      .table-footer { grid-template-columns: minmax(0, 1fr) minmax(120px, .46fr); }
+      .table-footer { grid-template-columns: minmax(0, 1fr) minmax(150px, .5fr); }
       .expense-scroll { height: 380px; }
       .note-item { grid-template-columns: auto minmax(0, 1fr) auto; }
       .note-item .note-money-cell { grid-column: 2 / 3; }
@@ -475,7 +532,7 @@
             <div class="expense-scroll" id="expenseRows" aria-live="polite"></div>
 
             <div class="table-footer">
-              <div class="total-label">Tổng tiền</div>
+              <div class="total-label">Tổng tiền (vào − chi)</div>
               <div class="total-value" id="totalValue">₩0</div>
             </div>
           </div>
@@ -484,8 +541,39 @@
             <button type="button" class="primary-btn" id="addExpenseBtn">＋ Thêm dòng</button>
           </div>
           <div class="status" id="saveStatus">Dữ liệu tự động lưu trên thiết bị</div>
+
+          <section class="income-section">
+            <div class="expense-table income-table">
+              <div class="table-row table-head">
+                <div>Nội dung tiền vào</div>
+                <div>Số tiền</div>
+              </div>
+              <div class="expense-scroll" id="incomeRows" aria-live="polite"></div>
+              <div class="table-footer">
+                <div class="total-label">Tổng tiền vào</div>
+                <div class="total-value" id="incomeTotalValue">₩0</div>
+              </div>
+            </div>
+            <div class="table-actions">
+              <button type="button" class="ghost-btn" id="addIncomeBtn">＋ Thêm dòng tiền vào</button>
+            </div>
+          </section>
         </div>
       </article>
+
+      <aside class="panel monthly-panel">
+        <div class="panel-head">
+          <div>
+            <p class="section-label">Tổng hợp tháng</p>
+            <h2 class="section-title">Đã tiêu trong tháng</h2>
+          </div>
+        </div>
+        <div class="monthly-summary">
+          <div class="monthly-month" id="monthlyMonth">Tháng 09/2026</div>
+          <div class="monthly-value" id="monthlyValue">₩0</div>
+          <div class="monthly-caption">Tổng tất cả khoản chi trong tháng đang chọn</div>
+        </div>
+      </aside>
 
       <aside class="panel">
         <div class="panel-head">
@@ -538,7 +626,10 @@
     const datePicker = $('#datePicker');
     const dateTitle = $('#dateTitle');
     const expenseRows = $('#expenseRows');
+    const incomeRows = $('#incomeRows');
     const totalValue = $('#totalValue');
+    const monthlyValue = $('#monthlyValue');
+    const monthlyMonth = $('#monthlyMonth');
     const saveStatus = $('#saveStatus');
     const receivableList = $('#receivableList');
     const payableList = $('#payableList');
@@ -566,6 +657,11 @@
           item: '',
           amount: 0
         })),
+        incomes: Array.from({ length: INITIAL_EXPENSE_ROWS }, (_, index) => ({
+          id: `inc_${date}_${index + 1}`,
+          item: '',
+          amount: 0
+        })),
         total: 0,
         notes: { receivable: [], payable: [] }
       };
@@ -587,11 +683,22 @@
         base.expenses.push({ id: `exp_${date}_${i}`, item: '', amount: 0 });
       }
 
+      const incomes = Array.isArray(raw.incomes) ? raw.incomes : [];
+      base.incomes = incomes.map((item, index) => ({
+        id: String(item?.id || `inc_${date}_${index + 1}`),
+        item: String(item?.item || ''),
+        amount: toNumber(item?.amount)
+      }));
+      while (base.incomes.length < INITIAL_EXPENSE_ROWS) {
+        const i = base.incomes.length + 1;
+        base.incomes.push({ id: `inc_${date}_${i}`, item: '', amount: 0 });
+      }
+
       base.notes = {
         receivable: normalizeNotes(raw?.notes?.receivable, 'rec', date),
         payable: normalizeNotes(raw?.notes?.payable, 'pay', date)
       };
-      base.total = sumExpenses(base.expenses);
+      base.total = sumIncomes(base.incomes) - sumExpenses(base.expenses);
       return base;
     }
 
@@ -654,6 +761,10 @@
       return expenses.reduce((sum, row) => sum + toNumber(row.amount), 0);
     }
 
+    function sumIncomes(incomes) {
+      return incomes.reduce((sum, row) => sum + toNumber(row.amount), 0);
+    }
+
     function formatMoney(value) {
       const number = Math.max(0, Math.round(toNumber(value)));
       return new Intl.NumberFormat('vi-VN').format(number);
@@ -663,16 +774,19 @@
       return `${formatMoney(value)} ${state.currency}`;
     }
 
-    function buildExpenseRow(row, index) {
+    function buildMoneyRow(row, index, kind) {
       const wrapper = document.createElement('div');
       wrapper.className = 'table-row expense-row';
       wrapper.dataset.id = row.id;
+      const isIncome = kind === 'income';
+      const prefix = isIncome ? 'Khoản tiền vào' : 'Nội dung chi tiêu';
+      const inputClass = isIncome ? 'income' : 'expense';
       wrapper.innerHTML = `
         <div>
-          <input class="text-input expense-item" type="text" placeholder="Nhập nội dung..." value="${escapeHtml(row.item)}" data-index="${index}" aria-label="Nội dung chi tiêu ${index + 1}" />
+          <input class="text-input ${inputClass}-item" type="text" placeholder="Nhập nội dung..." value="${escapeHtml(row.item)}" data-index="${index}" aria-label="${prefix} ${index + 1}" />
         </div>
         <div>
-          <div class="money-cell"><input class="money-input expense-amount" type="text" inputmode="numeric" autocomplete="off" placeholder="0" value="${row.amount ? formatMoney(row.amount) : ''}" data-index="${index}" aria-label="Giá ${index + 1}" /><span class="currency-unit">${state.currency}</span></div>
+          <div class="money-cell"><input class="money-input ${inputClass}-amount" type="text" inputmode="numeric" autocomplete="off" placeholder="0" value="${row.amount ? formatMoney(row.amount) : ''}" data-index="${index}" aria-label="Số tiền ${index + 1}" /><span class="currency-unit">${state.currency}</span></div>
         </div>
       `;
       return wrapper;
@@ -681,14 +795,37 @@
     function renderExpenses() {
       const day = getCurrentDay();
       expenseRows.innerHTML = '';
-      day.expenses.forEach((row, index) => expenseRows.appendChild(buildExpenseRow(row, index)));
+      day.expenses.forEach((row, index) => expenseRows.appendChild(buildMoneyRow(row, index, 'expense')));
+      incomeRows.innerHTML = '';
+      day.incomes.forEach((row, index) => incomeRows.appendChild(buildMoneyRow(row, index, 'income')));
       updateTotal();
+      updateMonthlySummary();
     }
 
     function updateTotal() {
       const day = getCurrentDay();
-      day.total = sumExpenses(day.expenses);
+      const expenses = sumExpenses(day.expenses);
+      const incomes = sumIncomes(day.incomes);
+      day.total = incomes - expenses;
       totalValue.textContent = moneyLabel(day.total);
+      totalValue.classList.toggle('net-positive', day.total > 0);
+      totalValue.classList.toggle('net-negative', day.total < 0);
+      const incomeTotalValue = $('#incomeTotalValue');
+      incomeTotalValue.textContent = moneyLabel(incomes);
+    }
+
+    function updateMonthlySummary() {
+      const [year, month] = state.selectedDate.split('-');
+      const prefix = `${year}-${month}`;
+      let monthlySpent = 0;
+      Object.entries(state.data).forEach(([date, raw]) => {
+        if (date.startsWith(prefix)) {
+          const day = normalizeDay(date, raw);
+          monthlySpent += sumExpenses(day.expenses);
+        }
+      });
+      monthlyValue.textContent = moneyLabel(monthlySpent);
+      monthlyMonth.textContent = `Tháng ${month}/${year}`;
     }
 
     function updateHeader() {
@@ -749,6 +886,19 @@
       });
     }
 
+    function addIncomeRow() {
+      const day = getCurrentDay();
+      day.incomes.push({ id: `inc_${Date.now()}`, item: '', amount: 0 });
+      renderExpenses();
+      saveAllData();
+      requestAnimationFrame(() => {
+        const inputs = incomeRows.querySelectorAll('.income-item');
+        const target = inputs[inputs.length - 1];
+        target?.focus();
+        incomeRows.scrollTop = incomeRows.scrollHeight;
+      });
+    }
+
     function addNote(type) {
       const day = getCurrentDay();
       day.notes[type].push({
@@ -773,36 +923,44 @@
       saveAllData();
     }
 
-    function handleExpenseInput(event) {
+    function handleMoneyTableInput(event, kind) {
       const input = event.target;
       const index = Number(input.dataset.index);
       if (!Number.isInteger(index)) return;
       const day = getCurrentDay();
+      const rows = kind === 'income' ? day.incomes : day.expenses;
+      const prefix = kind === 'income' ? 'income' : 'expense';
+      if (!rows[index]) return;
 
-      if (input.classList.contains('expense-item')) {
-        day.expenses[index].item = input.value;
-      } else if (input.classList.contains('expense-amount')) {
+      if (input.classList.contains(`${prefix}-item`)) {
+        rows[index].item = input.value;
+      } else if (input.classList.contains(`${prefix}-amount`)) {
         const numeric = toNumber(input.value);
-        day.expenses[index].amount = numeric;
+        rows[index].amount = numeric;
         input.value = numeric ? formatMoney(numeric) : '';
         updateTotal();
+        updateMonthlySummary();
       }
-      day.total = sumExpenses(day.expenses);
+      updateTotal();
+      updateMonthlySummary();
       saveAllData();
     }
 
-    function handleExpenseKeydown(event) {
+    function handleMoneyTableKeydown(event, kind) {
       const input = event.target;
-      if (!input.classList.contains('expense-item') && !input.classList.contains('expense-amount')) return;
+      const prefix = kind === 'income' ? 'income' : 'expense';
+      if (!input.classList.contains(`${prefix}-item`) && !input.classList.contains(`${prefix}-amount`)) return;
       if (event.key !== 'Enter') return;
       const index = Number(input.dataset.index);
       const day = getCurrentDay();
-      if (index === day.expenses.length - 1) {
+      const rows = kind === 'income' ? day.incomes : day.expenses;
+      const container = kind === 'income' ? incomeRows : expenseRows;
+      if (index === rows.length - 1) {
         event.preventDefault();
-        addExpenseRow();
+        kind === 'income' ? addIncomeRow() : addExpenseRow();
       } else {
         event.preventDefault();
-        const next = expenseRows.querySelector(`.expense-item[data-index="${index + 1}"]`);
+        const next = container.querySelector(`.${prefix}-item[data-index="${index + 1}"]`);
         next?.focus();
       }
     }
@@ -857,14 +1015,17 @@
     });
 
     $('#addExpenseBtn').addEventListener('click', addExpenseRow);
+    $('#addIncomeBtn').addEventListener('click', addIncomeRow);
 
-    expenseRows.addEventListener('input', handleExpenseInput);
-    expenseRows.addEventListener('keydown', handleExpenseKeydown);
-    expenseRows.addEventListener('blur', event => {
-      if (event.target.classList.contains('expense-amount')) {
+    expenseRows.addEventListener('input', event => handleMoneyTableInput(event, 'expense'));
+    expenseRows.addEventListener('keydown', event => handleMoneyTableKeydown(event, 'expense'));
+    incomeRows.addEventListener('input', event => handleMoneyTableInput(event, 'income'));
+    incomeRows.addEventListener('keydown', event => handleMoneyTableKeydown(event, 'income'));
+    [expenseRows, incomeRows].forEach(container => container.addEventListener('blur', event => {
+      if (event.target.classList.contains('expense-amount') || event.target.classList.contains('income-amount')) {
         event.target.value = event.target.value ? formatMoney(event.target.value) : '';
       }
-    }, true);
+    }, true));
 
     document.querySelectorAll('[data-currency]').forEach(btn => {
       btn.addEventListener('click', () => {
