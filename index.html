@@ -64,7 +64,7 @@
 
     .dashboard {
       display: grid;
-      grid-template-columns: minmax(0, 1.55fr) minmax(210px, 0.48fr) minmax(330px, 0.9fr);
+      grid-template-columns: minmax(0, 1.55fr) minmax(330px, 0.9fr);
       gap: 18px;
       align-items: start;
     }
@@ -321,8 +321,26 @@
     .icon-btn { width: 40px; padding: 0; display: grid; place-items: center; }
     .icon-btn:hover, .ghost-btn:hover, .primary-btn:hover { transform: translateY(-1px); }
 
-    .monthly-panel {
+    .summary-panels {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    .monthly-panel,
+    .balance-panel {
       min-height: 180px;
+    }
+
+    .balance-summary {
+      margin: 18px;
+      padding: 20px 18px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--surface-soft);
+      text-align: center;
     }
 
     .monthly-summary {
@@ -468,6 +486,7 @@
 
     @media (max-width: 980px) {
       .dashboard { grid-template-columns: 1fr; }
+      .summary-panels { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .expense-scroll { height: 420px; }
     }
 
@@ -479,6 +498,7 @@
       .date-input { min-width: 0; width: 100%; }
       .table-row,
       .table-footer { grid-template-columns: minmax(0, 1fr) minmax(150px, .5fr); }
+      .summary-panels { grid-template-columns: 1fr; }
       .expense-scroll { height: 380px; }
       .note-item { grid-template-columns: auto minmax(0, 1fr) auto; }
       .note-item .note-money-cell { grid-column: 2 / 3; }
@@ -532,7 +552,7 @@
             <div class="expense-scroll" id="expenseRows" aria-live="polite"></div>
 
             <div class="table-footer">
-              <div class="total-label">Tổng tiền (vào − chi)</div>
+              <div class="total-label">Tổng tiền</div>
               <div class="total-value" id="totalValue">₩0</div>
             </div>
           </div>
@@ -558,22 +578,9 @@
               <button type="button" class="ghost-btn" id="addIncomeBtn">＋ Thêm dòng tiền vào</button>
             </div>
           </section>
+
         </div>
       </article>
-
-      <aside class="panel monthly-panel">
-        <div class="panel-head">
-          <div>
-            <p class="section-label">Tổng hợp tháng</p>
-            <h2 class="section-title">Đã tiêu trong tháng</h2>
-          </div>
-        </div>
-        <div class="monthly-summary">
-          <div class="monthly-month" id="monthlyMonth">Tháng 09/2026</div>
-          <div class="monthly-value" id="monthlyValue">₩0</div>
-          <div class="monthly-caption">Tổng tất cả khoản chi trong tháng đang chọn</div>
-        </div>
-      </aside>
 
       <aside class="panel">
         <div class="panel-head">
@@ -607,6 +614,36 @@
           </section>
         </div>
       </aside>
+
+      <div class="summary-panels">
+        <aside class="panel monthly-panel">
+          <div class="panel-head">
+            <div>
+              <p class="section-label">Tổng hợp tháng</p>
+              <h2 class="section-title">Đã tiêu trong tháng</h2>
+            </div>
+          </div>
+          <div class="monthly-summary">
+            <div class="monthly-month" id="monthlyMonth">Tháng 09/2026</div>
+            <div class="monthly-value" id="monthlyValue">₩0</div>
+            <div class="monthly-caption">Chỉ tính các khoản chi trong tháng đang chọn</div>
+          </div>
+        </aside>
+
+        <aside class="panel balance-panel">
+          <div class="panel-head">
+            <div>
+              <p class="section-label">Tài chính</p>
+              <h2 class="section-title">Số dư</h2>
+            </div>
+          </div>
+          <div class="balance-summary">
+            <div class="monthly-month">Tiền vào − Đã tiêu trong tháng</div>
+            <div class="monthly-value" id="balanceValue">₩0</div>
+            <div class="monthly-caption">Lấy tổng tiền vào của ngày đang chọn trừ tổng chi tiêu của tháng</div>
+          </div>
+        </aside>
+      </div>
     </section>
   </main>
 
@@ -630,6 +667,7 @@
     const totalValue = $('#totalValue');
     const monthlyValue = $('#monthlyValue');
     const monthlyMonth = $('#monthlyMonth');
+    const balanceValue = $('#balanceValue');
     const saveStatus = $('#saveStatus');
     const receivableList = $('#receivableList');
     const payableList = $('#payableList');
@@ -806,26 +844,52 @@
       const day = getCurrentDay();
       const expenses = sumExpenses(day.expenses);
       const incomes = sumIncomes(day.incomes);
-      day.total = incomes - expenses;
-      totalValue.textContent = moneyLabel(day.total);
-      totalValue.classList.toggle('net-positive', day.total > 0);
-      totalValue.classList.toggle('net-negative', day.total < 0);
+
+      // Mỗi bảng chỉ tính tổng của chính bảng đó.
+      day.total = expenses;
+      totalValue.textContent = moneyLabel(expenses);
+      totalValue.classList.remove('net-positive', 'net-negative');
+
       const incomeTotalValue = $('#incomeTotalValue');
       incomeTotalValue.textContent = moneyLabel(incomes);
+
+      updateBalance(incomes);
     }
 
     function updateMonthlySummary() {
       const [year, month] = state.selectedDate.split('-');
       const prefix = `${year}-${month}`;
       let monthlySpent = 0;
+
       Object.entries(state.data).forEach(([date, raw]) => {
         if (date.startsWith(prefix)) {
           const day = normalizeDay(date, raw);
           monthlySpent += sumExpenses(day.expenses);
         }
       });
+
       monthlyValue.textContent = moneyLabel(monthlySpent);
       monthlyMonth.textContent = `Tháng ${month}/${year}`;
+      updateBalance(sumIncomes(getCurrentDay().incomes), monthlySpent);
+    }
+
+    function updateBalance(incomes, monthlySpent = null) {
+      if (!balanceValue) return;
+      if (monthlySpent === null) {
+        const [year, month] = state.selectedDate.split('-');
+        const prefix = `${year}-${month}`;
+        monthlySpent = 0;
+        Object.entries(state.data).forEach(([date, raw]) => {
+          if (date.startsWith(prefix)) {
+            const day = normalizeDay(date, raw);
+            monthlySpent += sumExpenses(day.expenses);
+          }
+        });
+      }
+      const balance = toNumber(incomes) - toNumber(monthlySpent);
+      balanceValue.textContent = `${balance < 0 ? '-' : ''}${formatMoney(Math.abs(balance))} ${state.currency}`;
+      balanceValue.classList.toggle('net-positive', balance > 0);
+      balanceValue.classList.toggle('net-negative', balance < 0);
     }
 
     function updateHeader() {
