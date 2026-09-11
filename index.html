@@ -640,7 +640,7 @@
           <div class="balance-summary">
             <div class="monthly-month">Tiền vào − Đã tiêu trong tháng</div>
             <div class="monthly-value" id="balanceValue">₩0</div>
-            <div class="monthly-caption">Lấy tổng tiền vào của ngày đang chọn trừ tổng chi tiêu của tháng</div>
+            <div class="monthly-caption">Lấy tổng tiền vào của cả tháng trừ tổng chi tiêu của tháng</div>
           </div>
         </aside>
       </div>
@@ -655,7 +655,8 @@
     const state = {
       selectedDate: getTodayKey(),
       currency: 'KRW',
-      data: loadAllData()
+      data: loadAllData(),
+      monthlyIncomes: loadMonthlyIncomes()
     };
 
     const $ = (selector) => document.querySelector(selector);
@@ -695,11 +696,7 @@
           item: '',
           amount: 0
         })),
-        incomes: Array.from({ length: INITIAL_EXPENSE_ROWS }, (_, index) => ({
-          id: `inc_${date}_${index + 1}`,
-          item: '',
-          amount: 0
-        })),
+        incomes: [],
         total: 0,
         notes: { receivable: [], payable: [] }
       };
@@ -721,22 +718,14 @@
         base.expenses.push({ id: `exp_${date}_${i}`, item: '', amount: 0 });
       }
 
-      const incomes = Array.isArray(raw.incomes) ? raw.incomes : [];
-      base.incomes = incomes.map((item, index) => ({
-        id: String(item?.id || `inc_${date}_${index + 1}`),
-        item: String(item?.item || ''),
-        amount: toNumber(item?.amount)
-      }));
-      while (base.incomes.length < INITIAL_EXPENSE_ROWS) {
-        const i = base.incomes.length + 1;
-        base.incomes.push({ id: `inc_${date}_${i}`, item: '', amount: 0 });
-      }
+      // Tiền vào hiện được quản lý theo tháng, không còn theo từng ngày.
+      base.incomes = [];
 
       base.notes = {
         receivable: normalizeNotes(raw?.notes?.receivable, 'rec', date),
         payable: normalizeNotes(raw?.notes?.payable, 'pay', date)
       };
-      base.total = sumIncomes(base.incomes) - sumExpenses(base.expenses);
+      base.total = sumExpenses(base.expenses);
       return base;
     }
 
@@ -759,6 +748,73 @@
       }
     }
 
+    function getMonthKey(dateKey = state.selectedDate) {
+      return dateKey.slice(0, 7);
+    }
+
+    function createEmptyMonth(month) {
+      return {
+        month,
+        incomes: Array.from({ length: INITIAL_EXPENSE_ROWS }, (_, index) => ({
+          id: `inc_${month}_${index + 1}`,
+          item: '',
+          amount: 0
+        }))
+      };
+    }
+
+    function normalizeMonth(month, raw) {
+      const base = createEmptyMonth(month);
+      if (!raw || typeof raw !== 'object') return base;
+      const incomes = Array.isArray(raw.incomes) ? raw.incomes : [];
+      base.incomes = incomes.map((item, index) => ({
+        id: String(item?.id || `inc_${month}_${index + 1}`),
+        item: String(item?.item || ''),
+        amount: toNumber(item?.amount)
+      }));
+      while (base.incomes.length < INITIAL_EXPENSE_ROWS) {
+        const i = base.incomes.length + 1;
+        base.incomes.push({ id: `inc_${month}_${i}`, item: '', amount: 0 });
+      }
+      return base;
+    }
+
+    function loadMonthlyIncomes() {
+      try {
+        const raw = JSON.parse(localStorage.getItem(STORAGE_KEY + '-monthly-incomes') || '{}');
+        if (raw && typeof raw === 'object' && Object.keys(raw).length) return raw;
+      } catch {}
+
+      // Migration: chuyển dữ liệu tiền vào kiểu cũ (theo ngày) sang tháng.
+      const migrated = {};
+      try {
+        const rawDays = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+        Object.entries(rawDays || {}).forEach(([date, rawDay]) => {
+          const old = Array.isArray(rawDay?.incomes) ? rawDay.incomes : [];
+          const meaningful = old.filter(row => String(row?.item || '').trim() || toNumber(row?.amount));
+          if (!meaningful.length) return;
+          const month = date.slice(0, 7);
+          if (!migrated[month]) migrated[month] = createEmptyMonth(month);
+          meaningful.forEach((row, index) => {
+            if (!migrated[month].incomes[index]) migrated[month].incomes[index] = { id: `inc_${month}_${Date.now()}_${index}`, item: '', amount: 0 };
+            const target = migrated[month].incomes[index];
+            if (!target.item && !target.amount) {
+              target.item = String(row?.item || '');
+              target.amount = toNumber(row?.amount);
+            }
+          });
+        });
+      } catch {}
+      return migrated;
+    }
+
+    function getCurrentMonth() {
+      const month = getMonthKey();
+      if (!state.monthlyIncomes[month]) state.monthlyIncomes[month] = createEmptyMonth(month);
+      state.monthlyIncomes[month] = normalizeMonth(month, state.monthlyIncomes[month]);
+      return state.monthlyIncomes[month];
+    }
+
     function loadSettings() {
       try {
         const raw = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
@@ -768,6 +824,7 @@
 
     function saveAllData() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data));
+      localStorage.setItem(STORAGE_KEY + '-monthly-incomes', JSON.stringify(state.monthlyIncomes));
       localStorage.setItem(SETTINGS_KEY, JSON.stringify({ currency: state.currency }));
       flashSaved();
     }
@@ -835,7 +892,7 @@
       expenseRows.innerHTML = '';
       day.expenses.forEach((row, index) => expenseRows.appendChild(buildMoneyRow(row, index, 'expense')));
       incomeRows.innerHTML = '';
-      day.incomes.forEach((row, index) => incomeRows.appendChild(buildMoneyRow(row, index, 'income')));
+      getCurrentMonth().incomes.forEach((row, index) => incomeRows.appendChild(buildMoneyRow(row, index, 'income')));
       updateTotal();
       updateMonthlySummary();
     }
@@ -843,7 +900,7 @@
     function updateTotal() {
       const day = getCurrentDay();
       const expenses = sumExpenses(day.expenses);
-      const incomes = sumIncomes(day.incomes);
+      const incomes = sumIncomes(getCurrentMonth().incomes);
 
       // Mỗi bảng chỉ tính tổng của chính bảng đó.
       day.total = expenses;
@@ -870,7 +927,7 @@
 
       monthlyValue.textContent = moneyLabel(monthlySpent);
       monthlyMonth.textContent = `Tháng ${month}/${year}`;
-      updateBalance(sumIncomes(getCurrentDay().incomes), monthlySpent);
+      updateBalance(sumIncomes(getCurrentMonth().incomes), monthlySpent);
     }
 
     function updateBalance(incomes, monthlySpent = null) {
@@ -951,8 +1008,8 @@
     }
 
     function addIncomeRow() {
-      const day = getCurrentDay();
-      day.incomes.push({ id: `inc_${Date.now()}`, item: '', amount: 0 });
+      const month = getCurrentMonth();
+      month.incomes.push({ id: `inc_${Date.now()}`, item: '', amount: 0 });
       renderExpenses();
       saveAllData();
       requestAnimationFrame(() => {
@@ -992,7 +1049,7 @@
       const index = Number(input.dataset.index);
       if (!Number.isInteger(index)) return;
       const day = getCurrentDay();
-      const rows = kind === 'income' ? day.incomes : day.expenses;
+      const rows = kind === 'income' ? getCurrentMonth().incomes : day.expenses;
       const prefix = kind === 'income' ? 'income' : 'expense';
       if (!rows[index]) return;
 
@@ -1017,7 +1074,7 @@
       if (event.key !== 'Enter') return;
       const index = Number(input.dataset.index);
       const day = getCurrentDay();
-      const rows = kind === 'income' ? day.incomes : day.expenses;
+      const rows = kind === 'income' ? getCurrentMonth().incomes : day.expenses;
       const container = kind === 'income' ? incomeRows : expenseRows;
       if (index === rows.length - 1) {
         event.preventDefault();
@@ -1122,6 +1179,7 @@
 
     loadSettings();
     getCurrentDay();
+    getCurrentMonth();
     updateHeader();
     renderCurrencyButtons();
     renderExpenses();
